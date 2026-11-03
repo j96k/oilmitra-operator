@@ -1,0 +1,38 @@
+# Render Blueprint: standalone OilMitra operator console.
+# Serves the API and the operator app at /admin/.
+# Use the SAME Neon DATABASE_URL as the main OilMitra service.
+services:
+  - type: web
+    name: oilmitra-operator
+    runtime: python
+    plan: free
+    region: singapore          # closest free region to India
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: TZ
+        value: Asia/Kolkata
+      - key: DB_TYPE
+        value: postgres
+      - key: DATABASE_URL     # paste the SAME Neon connection string as the main service
+        sync: false
+      - key: JWT_SECRET       # Render generates a random login-token secret
+        generateValue: true
+      - key: JWT_EXPIRE_DAYS
+        value: "30"
+      - key: ADMIN_USERNAMES  # comma-separated operator usernames
+        sync: false
+      - key: DONATE_NAME
+        value: OilMitra
+      - key: DONATE_UPI_ID
+        sync: false
+      - key: DONATE_URL
+        sync: false
+      - key: CO2_PER_LITER
+        value: "2.8"
+      - key: BIODIESEL_YIELD
+        value: "0.92"

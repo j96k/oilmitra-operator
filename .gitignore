@@ -1,0 +1,20 @@
+# Never upload local secrets or generated data
+.env
+*.db
+*.pem
+*.jks
+*.keystore
+__pycache__/
+.venv/
+backend/database/
+backend/uploads/
+backend/server.log
+backend/server.err.log
+.pub-cache/
+mobile/build/
+mobile/.dart_tool/
+mobile/.idea/
+mobile/.gradle/
+mobile/android/.gradle/
+mobile/ios/Pods/
+deploy/*.tar.gz
