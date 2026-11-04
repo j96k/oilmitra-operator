@@ -33,9 +33,28 @@ class User(Base):
 
     @property
     def is_admin(self) -> bool:
-        from .config import settings
+        # Admin rights now come only from the database: a users row with
+        # role="admin", which is created automatically for every row in the
+        # admins table. ADMIN_USERNAMES is no longer used.
+        return self.role == "admin"
 
-        return self.role == "admin" or self.username.lower() in settings.admins
+
+class Admin(Base):
+    """An OilMitra operator account.
+
+    These rows are created by hand by the owner (see
+    ``backend/scripts/create_admin.py``), never through the apps. They are the
+    only accounts that can sign in at /admin/ and the only source of admin
+    passwords.
+    """
+
+    __tablename__ = "admins"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    name: Mapped[str] = mapped_column(String(120), default="OilMitra operator")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
 
 class Listing(Base):

@@ -31,7 +31,8 @@ class Settings(BaseSettings):
     donate_name: str = "OilMitra"
     donate_url: str = ""
 
-    # Usernames (comma separated) that can edit the daily oil rate board.
+    # Retired. Admin/operator accounts now live in the `admins` table and are
+    # created with backend/scripts/create_admin.py. Kept so old .env files load.
     admin_usernames: str = ""
 
     # --- Impact maths (shown in the app) ---

@@ -18,13 +18,10 @@ class AdminLoginScreen extends StatefulWidget {
 class _AdminLoginScreenState extends State<AdminLoginScreen> with SingleTickerProviderStateMixin {
   bool _busy = false;
   bool _obscure = true;
-  bool _register = false;
   late final AnimationController _pulse;
 
   final _username = TextEditingController();
   final _password = TextEditingController();
-  final _name = TextEditingController();
-  final _city = TextEditingController();
 
   @override
   void initState() {
@@ -37,8 +34,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> with SingleTickerPr
     _pulse.dispose();
     _username.dispose();
     _password.dispose();
-    _name.dispose();
-    _city.dispose();
     super.dispose();
   }
 
@@ -48,30 +43,13 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> with SingleTickerPr
       _snack('Enter your operator username and password');
       return;
     }
-    if (_register && _name.text.trim().length < 2) {
-      _snack('Enter the operator or team name');
-      return;
-    }
     setState(() => _busy = true);
     try {
-      if (_register) {
-        await Api.instance.register(
-          username: _username.text.trim(),
-          password: _password.text,
-          name: _name.text.trim(),
-          role: 'supplier',
-          orgType: 'other',
-          city: _city.text.trim(),
-        );
-      } else {
-        await Api.instance.login(_username.text.trim(), _password.text);
-      }
+      await Api.instance.login(_username.text.trim(), _password.text);
       final user = Api.instance.user;
       if (user == null || !user.isAdmin) {
         await Api.instance.logout();
-        _snack(_register
-            ? 'That username is not provisioned for operator access.'
-            : 'This account is not an OilMitra operator. Use the supplier app instead.');
+        _snack('This account is not an OilMitra operator. Use the supplier app instead.');
         return;
       }
       if (!mounted) return;
@@ -205,30 +183,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> with SingleTickerPr
                   ),
                 ]),
                 const SizedBox(height: 14),
-                Row(children: [
-                  Expanded(
-                    child: _ModeTab(label: 'Sign in', active: !_register, onTap: () => setState(() => _register = false)),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _ModeTab(label: 'Create operator', active: _register, onTap: () => setState(() => _register = true)),
-                  ),
-                ]),
-                const SizedBox(height: 14),
-                if (_register) ...[
-                  TextField(
-                    controller: _name,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(hintText: 'Operator or team name', prefixIcon: Icon(Icons.badge_outlined, size: 20)),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _city,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(hintText: 'City (for the radar)', prefixIcon: Icon(Icons.location_city_rounded, size: 20)),
-                  ),
-                  const SizedBox(height: 10),
-                ],
                 TextField(
                   controller: _username,
                   textInputAction: TextInputAction.next,
@@ -253,16 +207,14 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> with SingleTickerPr
                   onPressed: _busy ? null : _submit,
                   child: _busy
                       ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
-                      : Text(_register ? 'Create operator account' : 'Enter console'),
+                      : const Text('Enter console'),
                 ),
                 const SizedBox(height: 10),
                 Center(
                   child: Text(
-                    _register
-                        ? 'Only usernames provisioned in ADMIN_USERNAMES become operators.'
-                        : 'Admin access is provisioned by OilMitra.',
+                    'Operator accounts are created by OilMitra in the database.\nSupplier accounts sign in through the OilMitra app.',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 11.5, color: AppColors.muted),
+                    style: const TextStyle(fontSize: 11.5, color: AppColors.muted, height: 1.45),
                   ),
                 ),
               ]),
@@ -270,36 +222,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> with SingleTickerPr
           ]),
         ),
       ]),
-    );
-  }
-}
-
-class _ModeTab extends StatelessWidget {
-  const _ModeTab({required this.label, required this.active, required this.onTap});
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 11),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: active ? AppColors.ink : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: active ? AppColors.ink : AppColors.line),
-        ),
-        child: Text(label,
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 13.5,
-              color: active ? Colors.white : AppColors.muted,
-            )),
-      ),
     );
   }
 }

@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from . import models  # noqa: F401  (registers tables)
+from .admin_accounts import sync_all_admins
 from .config import BASE_DIR, settings
 from .database import Base, SessionLocal, engine, get_db, upgrade_schema
 from .models import StoredImage
@@ -17,6 +18,7 @@ settings.upload_dir.mkdir(parents=True, exist_ok=True)
 
 with SessionLocal() as _db:
     seed_rates(_db)
+    sync_all_admins(_db)  # every admins row gets a users mirror row
 
 app = FastAPI(title="OilMitra API", version="1.0.0", description="Used cooking oil pickup network")
 

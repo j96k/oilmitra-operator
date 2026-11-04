@@ -18,13 +18,14 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('operator console shows sign-in and provisioning', (WidgetTester tester) async {
+  testWidgets('operator console is sign-in only', (WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: const AdminLoginScreen()));
     await tester.pump(const Duration(milliseconds: 120));
 
     expect(find.text('Operator console'), findsOneWidget);
-    expect(find.text('Sign in'), findsOneWidget);
-    expect(find.text('Create operator'), findsOneWidget);
+    expect(find.text('Enter console'), findsOneWidget);
+    // Admin accounts are created in the database, never from this screen.
+    expect(find.text('Create operator'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

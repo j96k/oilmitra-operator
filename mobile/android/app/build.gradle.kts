@@ -29,6 +29,20 @@ android {
         versionName = flutter.versionName
     }
 
+    flavorDimensions += "app"
+    productFlavors {
+        create("supplier") {
+            dimension = "app"
+            applicationId = "com.oilmitra.oil_mitra"
+            manifestPlaceholders["appLabel"] = "OilMitra"
+        }
+        create("operator") {
+            dimension = "app"
+            applicationId = "com.oilmitra.oil_mitra.operator"
+            manifestPlaceholders["appLabel"] = "OilMitra Operator"
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.

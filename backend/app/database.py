@@ -75,10 +75,5 @@ def upgrade_schema() -> None:
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
 
         # The old "collector" account role is retired. OilMitra operators use
-        # the separate admin app, and admins are identified by ADMIN_USERNAMES.
+        # the separate operator console and live in the `admins` table.
         conn.execute(text("UPDATE users SET role = 'supplier' WHERE role = 'collector'"))
-        for admin in settings.admins:
-            conn.execute(
-                text("UPDATE users SET role = 'admin' WHERE lower(username) = :username"),
-                {"username": admin},
-            )
