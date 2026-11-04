@@ -363,3 +363,25 @@ double distanceKm(double lat1, double lng1, double lat2, double lng2) {
   final a = math.sin(dp / 2) * math.sin(dp / 2) + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) * math.sin(dl / 2);
   return 2 * r * math.asin(math.sqrt(a));
 }
+
+class OperatorAccount {
+  OperatorAccount({
+    required this.id,
+    required this.username,
+    required this.name,
+    this.createdAt,
+  });
+
+  final int id;
+  final String username;
+  final String name;
+  final DateTime? createdAt;
+
+  factory OperatorAccount.fromJson(Map<String, dynamic> j) => OperatorAccount(
+        id: _i(j['id']) ?? 0,
+        username: j['username'] ?? '',
+        name: j['name'] ?? '',
+        createdAt: _dt(j['created_at']),
+      );
+}
+

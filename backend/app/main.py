@@ -9,7 +9,7 @@ from .admin_accounts import sync_all_admins
 from .config import BASE_DIR, settings
 from .database import Base, SessionLocal, engine, get_db, upgrade_schema
 from .models import StoredImage
-from .routers import auth, dashboard, geo, listings, pickups, public
+from .routers import admin_portal, auth, dashboard, geo, listings, pickups, public
 from .seed import seed_rates
 
 Base.metadata.create_all(bind=engine)  # creates tables on first run
@@ -25,6 +25,7 @@ app = FastAPI(title="OilMitra API", version="1.0.0", description="Used cooking o
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 app.include_router(auth.router)
+app.include_router(admin_portal.router)
 app.include_router(listings.router)
 app.include_router(pickups.router)
 app.include_router(dashboard.router)
@@ -47,16 +48,14 @@ def get_photo(name: str, db: Session = Depends(get_db)):
     return Response(stored.data, media_type=stored.content_type, headers={"Cache-Control": "public, max-age=31536000"})
 
 
-# The browser versions of the apps are served by the API server, so one address
-# works for both apps and the API:
-#   /app/   supplier app (mobile/, built with --base-href /app/)
-#   /admin/ operator app (mobile/, built from lib/main_admin.dart with --base-href /admin/)
-# backend/webapp/ and backend/admin_webapp/ are the copies used by online
-# hosting (see deploy/prepare_online.bat); mobile/build/ is where the bat files
-# build them on this PC.
+# The browser versions of the apps are served by the API server:
+#   /app/    supplier app (OilMitra)
+#   /admin/  operator console (OilMitra Operators)
+#   /portal/ super admin portal (myOilMitra)
 _web_apps = {
     "/app": (BASE_DIR / "webapp", BASE_DIR.parent / "mobile" / "build" / "web"),
     "/admin": (BASE_DIR / "admin_webapp", BASE_DIR.parent / "mobile" / "build" / "admin_web"),
+    "/portal": (BASE_DIR / "portal_webapp", BASE_DIR.parent / "mobile" / "build" / "portal_web"),
 }
 for mount_path, candidates in _web_apps.items():
     for web_dir in candidates:

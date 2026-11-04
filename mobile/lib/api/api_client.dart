@@ -38,10 +38,10 @@ class Api {
   static String get defaultBaseUrl {
     if (_builtInUrl.isNotEmpty) return _builtInUrl;
     if (kIsWeb) {
-      // Served by the API server itself at /app/ or /admin/ — same origin, so
-      // both the supplier and operator apps talk to the API they came from.
+      // Served by the API server itself at /app/, /admin/ or /portal/ — same origin, so
+      // all apps talk to the API they came from.
       final path = Uri.base.path;
-      if (path.startsWith('/app') || path.startsWith('/admin')) return Uri.base.origin;
+      if (path.startsWith('/app') || path.startsWith('/admin') || path.startsWith('/portal')) return Uri.base.origin;
       return 'http://${Uri.base.host}:8000';
     }
     if (defaultTargetPlatform == TargetPlatform.android) return 'http://10.0.2.2:8000'; // emulator -> PC
@@ -284,6 +284,27 @@ class Api {
       ((await get('/leaderboard')) as List).map((e) => LeaderRow.fromJson(e)).toList();
   Future<List<OilRate>> rates() async => ((await get('/rates')) as List).map((e) => OilRate.fromJson(e)).toList();
   Future<void> setRate(String oilType, double price) => put('/rates/$oilType', {'price_per_liter': price});
+
+  // ---------------- Operator management (myOilMitra) ----------------
+  Future<List<OperatorAccount>> operators() async {
+    final list = await get('/admin-api/operators') as List;
+    return list.map((e) => OperatorAccount.fromJson(e)).toList();
+  }
+
+  Future<OperatorAccount> createOperator({
+    required String username,
+    required String password,
+    required String name,
+  }) async {
+    final res = await post('/admin-api/operators', {
+      'username': username,
+      'password': password,
+      'name': name,
+    });
+    return OperatorAccount.fromJson(res);
+  }
+
+  Future<void> deleteOperator(int operatorId) => delete('/admin-api/operators/$operatorId');
 
   // ---------------- Address / map ----------------
   Future<List<GeoPlace>> geoSearch(String q) async =>
