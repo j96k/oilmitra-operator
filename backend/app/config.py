@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     # created with backend/scripts/create_admin.py. Kept so old .env files load.
     admin_usernames: str = ""
 
-    # Google Places + Geocoding. Empty = keep using the free OpenStreetMap.
+    # Google Geocoding. Empty = keep using the free OpenStreetMap.
     google_maps_api_key: str = ""
 
     # --- Impact maths (shown in the app) ---

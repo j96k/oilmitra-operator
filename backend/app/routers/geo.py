@@ -1,8 +1,11 @@
 """Address search + reverse geocoding.
 
-Google Places and Google Geocoding are used when GOOGLE_MAPS_API_KEY is set.
-Without a key — or whenever Google fails — the free OpenStreetMap Nominatim
-service is used instead.
+Google **Geocoding** is used when GOOGLE_MAPS_API_KEY is set. Without a key —
+or whenever Google fails — the free OpenStreetMap Nominatim service is used
+instead.
+
+Only the Geocoding API needs to be enabled for the key:
+    https://maps.googleapis.com/maps/api/geocode/json
 
 Every request is made server-side, so the Google key is never compiled into the
 Android APK where anyone could extract it.
@@ -23,10 +26,11 @@ log = logging.getLogger("oilmitra.geo")
 
 _UA = "OilMitra/1.0 (used cooking oil pickup app)"
 _TIMEOUT = 12
+_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 
 
-def _request_json(url: str, *, data: bytes | None = None, headers: dict[str, str] | None = None):
-    req = urllib.request.Request(url, data=data, headers={"User-Agent": _UA, **(headers or {})})
+def _request_json(url: str, *, headers: dict[str, str] | None = None):
+    req = urllib.request.Request(url, headers={"User-Agent": _UA, **(headers or {})})
     try:
         with urllib.request.urlopen(req, timeout=_TIMEOUT) as res:
             return json.loads(res.read().decode("utf-8"))
@@ -41,45 +45,49 @@ def _google_key() -> str:
     return settings.google_maps_api_key.strip()
 
 
-# ---------------------------------------------------------------- Google Places
+# ------------------------------------------------------------- Google Geocoding
 
-def _google_search(q: str, limit: int, country: str) -> list[dict] | None:
-    """Search with Google Places (New). Returns None when Google can't answer."""
+def _google_geocode(params: dict[str, str]) -> dict | None:
+    """Call the Geocoding API.
+
+    Returns the Google payload for OK / ZERO_RESULTS, or None when the key is
+    missing or Google rejects the request (so the caller can use OpenStreetMap).
+    """
     key = _google_key()
     if not key:
         return None
-    payload = {
-        "textQuery": q,
-        "languageCode": "en",
-        "maxResultCount": max(1, min(limit, 10)),
-    }
-    if country:
-        payload["regionCode"] = country.upper()
+    query = {**params, "key": key, "language": "en"}
     try:
-        data = _request_json(
-            "https://places.googleapis.com/v1/places:searchText",
-            data=json.dumps(payload).encode(),
-            headers={
-                "Content-Type": "application/json",
-                "X-Goog-Api-Key": key,
-                "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.location",
-            },
-        )
+        data = _request_json(_GEOCODE_URL + "?" + urllib.parse.urlencode(query))
     except RuntimeError as exc:
-        log.warning("Google Places search failed (%s) - falling back to OpenStreetMap", exc)
+        log.warning("Google Geocoding request failed (%s) - falling back to OpenStreetMap", exc)
+        return None
+
+    status = (data.get("status") or "").upper()
+    if status in ("OK", "ZERO_RESULTS"):
+        return data
+    # REQUEST_DENIED, OVER_QUERY_LIMIT, INVALID_REQUEST, UNKNOWN_ERROR...
+    error = data.get("error_message") or status or "no status"
+    log.warning("Google Geocoding returned %s - falling back to OpenStreetMap", error)
+    return None
+
+
+def _google_search(q: str, limit: int, country: str) -> list[dict] | None:
+    """Address -> coordinates with the Geocoding API. None = use OpenStreetMap."""
+    params = {"address": q}
+    if country:
+        params["components"] = f"country:{country.upper()}"
+    data = _google_geocode(params)
+    if data is None:
         return None
 
     results: list[dict] = []
-    for place in data.get("places") or []:
-        loc = place.get("location") or {}
-        lat, lng = loc.get("latitude"), loc.get("longitude")
-        if lat is None or lng is None:
+    for item in (data.get("results") or [])[: max(1, min(limit, 10))]:
+        loc = (item.get("geometry") or {}).get("location") or {}
+        lat, lng = loc.get("lat"), loc.get("lng")
+        label = (item.get("formatted_address") or "").strip()
+        if lat is None or lng is None or not label:
             continue
-        name = ((place.get("displayName") or {}).get("text") or "").strip()
-        address = (place.get("formattedAddress") or "").strip()
-        label = address or name
-        if name and address and not address.lower().startswith(name.lower()):
-            label = f"{name}, {address}"
         results.append({"label": label[:180], "lat": float(lat), "lng": float(lng)})
     return results
 
@@ -92,23 +100,17 @@ def _component(components: list[dict], *types: str) -> str | None:
 
 
 def _google_reverse(lat: float, lng: float) -> dict | None:
-    """Turn coordinates into an address with Google. None when unavailable."""
-    key = _google_key()
-    if not key:
+    """Coordinates -> address with the Geocoding API. None = use OpenStreetMap."""
+    data = _google_geocode({"latlng": f"{lat},{lng}"})
+    if data is None:
         return None
-    params = {"latlng": f"{lat},{lng}", "key": key, "language": "en", "region": "in"}
-    try:
-        data = _request_json(
-            "https://maps.googleapis.com/maps/api/geocode/json?" + urllib.parse.urlencode(params)
-        )
-    except RuntimeError as exc:
-        log.warning("Google reverse geocoding failed (%s) - falling back to OpenStreetMap", exc)
+
+    results = data.get("results") or []
+    if not results:
+        log.warning("Google Geocoding found no address at %s,%s - falling back to OpenStreetMap", lat, lng)
         return None
-    status = data.get("status")
-    if status != "OK" or not data.get("results"):
-        log.warning("Google reverse geocoding returned %s - falling back to OpenStreetMap", status)
-        return None
-    first = data["results"][0]
+
+    first = results[0]
     comps = first.get("address_components") or []
     return {
         "label": (first.get("formatted_address") or "")[:180],
@@ -135,6 +137,17 @@ def _label(item: dict) -> str:
 
 
 # ------------------------------------------------------------------- Routes
+
+@router.get("/status")
+def status():
+    """Is a Google key configured? Never returns the key itself.
+
+    Use this to confirm the Render environment variable reached the server:
+        GET /geo/status  ->  {"google_configured": true, "provider": "google"}
+    """
+    configured = bool(_google_key())
+    return {"provider": "google" if configured else "openstreetmap", "google_configured": configured}
+
 
 @router.get("/search")
 def search(q: str = Query(min_length=2, max_length=200), limit: int = 6, country: str = "in"):
