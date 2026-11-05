@@ -41,6 +41,11 @@ android {
             applicationId = "com.oilmitra.oil_mitra.operator"
             manifestPlaceholders["appLabel"] = "OilMitra Operator"
         }
+        create("myoilmitra") {
+            dimension = "app"
+            applicationId = "com.oilmitra.oil_mitra.myoilmitra"
+            manifestPlaceholders["appLabel"] = "myOilMitra"
+        }
     }
 
     buildTypes {
