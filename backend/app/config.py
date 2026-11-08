@@ -35,7 +35,8 @@ class Settings(BaseSettings):
     # created with backend/scripts/create_admin.py. Kept so old .env files load.
     admin_usernames: str = ""
 
-    # Google Geocoding. Empty = keep using the free OpenStreetMap.
+    # Google Maps key. Geocoding (server), the web Maps JavaScript API
+    # (served from /geo/config), and the Android/iOS SDK key at build time.
     google_maps_api_key: str = ""
 
     # --- Impact maths (shown in the app) ---

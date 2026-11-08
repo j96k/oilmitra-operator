@@ -26,6 +26,8 @@ services:
         value: "30"
       - key: ADMIN_USERNAMES  # comma-separated operator usernames
         sync: false
+      - key: GOOGLE_MAPS_API_KEY  # Google Maps (web JS + native SDK) and Geocoding
+        sync: false
       - key: DONATE_NAME
         value: OilMitra
       - key: DONATE_UPI_ID

@@ -1,17 +1,35 @@
 import 'dart:math' as math;
 
-import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 
 import '../models.dart';
 import '../theme.dart';
 
-/// A tiny offline-friendly slippy map.
+/// The map uses Google Maps everywhere.
 ///
-/// It draws OpenStreetMap tiles (free, no API key) in a `Stack`, supports drag
-/// and pinch/plus-minus zoom, and places our own pins on top. If tiles can't be
-/// loaded (no internet) the map falls back to a calm olive grid — pins still work.
-/// Also has an optional "radar" sweep for the collector home screen.
+/// * **Android / iOS** — the native Google Maps SDK. The key is injected at
+///   build time by `mobile/build_apks.ps1 -GoogleMaps`
+///   (`--dart-define=GOOGLE_MAPS_API_KEY=...`); it is never committed.
+/// * **Web** — the Maps JavaScript API. `web/index.html` loads it before
+///   Flutter starts, using the key the backend returns from `GET /geo/config`
+///   (a browser key, restricted by HTTP referrer). Nothing is baked into the
+///   committed web bundle.
+const String _googleMapsApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
+const String _mapsProvider = String.fromEnvironment('MAPS_PROVIDER', defaultValue: 'google');
+
+bool get _googleMapsSupported =>
+    kIsWeb ||
+    defaultTargetPlatform == TargetPlatform.android ||
+    defaultTargetPlatform == TargetPlatform.iOS;
+
+/// Web always has the JS API loaded by `index.html`; native platforms need the
+/// build-time key.
+bool get _useGoogleMaps => _googleMapsSupported && _mapsProvider == 'google' && (kIsWeb || _googleMapsApiKey.isNotEmpty);
+
+/// A Google Maps widget with our pins, tap-to-pick, zoom buttons and the
+/// optional collector "radar" sweep on top.
 class OilMap extends StatefulWidget {
   const OilMap({
     super.key,
@@ -45,31 +63,23 @@ class OilMap extends StatefulWidget {
 }
 
 class _OilMapState extends State<OilMap> with SingleTickerProviderStateMixin {
-  static const _tile = 256.0;
   static const _defaultCenter = LatLng(21.1702, 72.8311); // Surat
 
-  late double _lat;
-  late double _lng;
-  late int _zoom;
   late final AnimationController _radar;
-  Size _size = Size.zero;
+  gmaps.GoogleMapController? _googleController;
 
   @override
   void initState() {
     super.initState();
-    final c = widget.center ?? (widget.pins.isNotEmpty ? LatLng(widget.pins.first.lat, widget.pins.first.lng) : _defaultCenter);
-    _lat = c.lat;
-    _lng = c.lng;
-    _zoom = widget.zoom;
     _radar = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
   }
 
   @override
   void didUpdateWidget(covariant OilMap old) {
     super.didUpdateWidget(old);
-    if (widget.center != null && (widget.center!.lat != old.center?.lat || widget.center!.lng != old.center?.lng)) {
-      _lat = widget.center!.lat;
-      _lng = widget.center!.lng;
+    final c = widget.center;
+    if (c != null && (c.lat != old.center?.lat || c.lng != old.center?.lng)) {
+      _googleController?.animateCamera(gmaps.CameraUpdate.newLatLng(gmaps.LatLng(c.lat, c.lng)));
     }
     if (widget.showRadar && !old.showRadar) _radar.repeat();
     if (!widget.showRadar && old.showRadar) _radar.stop();
@@ -77,185 +87,111 @@ class _OilMapState extends State<OilMap> with SingleTickerProviderStateMixin {
 
   @override
   void dispose() {
+    _googleController = null;
     _radar.dispose();
     super.dispose();
   }
 
-  double get _world => _tile * math.pow(2, _zoom);
+  LatLng get _center =>
+      widget.center ?? (widget.pins.isNotEmpty ? LatLng(widget.pins.first.lat, widget.pins.first.lng) : _defaultCenter);
 
-  double _x(double lng) => (lng + 180) / 360 * _world;
-
-  double _y(double lat) {
-    final s = math.sin(lat.clamp(-85.0, 85.0) * math.pi / 180);
-    return (0.5 - math.log((1 + s) / (1 - s)) / (4 * math.pi)) * _world;
-  }
-
-  LatLng _fromWorld(double x, double y) {
-    final lng = x / _world * 360 - 180;
-    final n = math.pi - 2 * math.pi * y / _world;
-    final lat = 180 / math.pi * math.atan((math.exp(n) - math.exp(-n)) / 2);
-    return LatLng(lat.clamp(-85.0, 85.0), lng.clamp(-180.0, 180.0));
-  }
-
-  void _pan(Offset delta) {
-    final x = _x(_lng) - delta.dx;
-    final y = _y(_lat) - delta.dy;
-    final p = _fromWorld(x, y);
-    setState(() {
-      _lat = p.lat;
-      _lng = p.lng;
-    });
-  }
-
-  void _zoomBy(int d) {
-    final next = (_zoom + d).clamp(3, 17);
-    if (next != _zoom) setState(() => _zoom = next);
-  }
-
-  void _tap(Offset local) {
-    if (!widget.interactive || widget.onTap == null) return;
-    final originX = _x(_lng) - _size.width / 2;
-    final originY = _y(_lat) - _size.height / 2;
-    widget.onTap!(_fromWorld(originX + local.dx, originY + local.dy));
+  void _googleZoom(int delta) {
+    final c = _googleController;
+    if (c == null) return;
+    c.animateCamera(delta > 0 ? gmaps.CameraUpdate.zoomIn() : gmaps.CameraUpdate.zoomOut());
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!_useGoogleMaps) return _buildUnavailable();
+    return _buildGoogle();
+  }
+
+  Widget _buildGoogle() {
+    final center = _center;
+    final markers = <gmaps.Marker>{
+      for (var i = 0; i < widget.pins.length; i++)
+        gmaps.Marker(
+          markerId: gmaps.MarkerId('pin-$i'),
+          position: gmaps.LatLng(widget.pins[i].lat, widget.pins[i].lng),
+          infoWindow: gmaps.InfoWindow(title: widget.pins[i].label),
+          icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+            widget.pins[i].highlight ? gmaps.BitmapDescriptor.hueOrange : gmaps.BitmapDescriptor.hueGreen,
+          ),
+          onTap: widget.onPinTap == null ? null : () => widget.onPinTap!(widget.pins[i]),
+        ),
+    };
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(widget.cornerRadius),
       child: SizedBox(
         height: widget.height,
-        child: LayoutBuilder(builder: (context, constraints) {
-          final w = constraints.maxWidth;
-          final h = widget.height;
-          _size = Size(w, h);
-          final cx = _x(_lng), cy = _y(_lat);
-          final originX = cx - w / 2, originY = cy - h / 2;
-          final n = 1 << _zoom;
-          final firstX = (originX / _tile).floor(), lastX = ((originX + w) / _tile).floor();
-          final firstY = (originY / _tile).floor(), lastY = ((originY + h) / _tile).floor();
-
-          return Listener(
-            onPointerSignal: (event) {
-              if (event is PointerScrollEvent) {
-                _zoomBy(event.scrollDelta.dy > 0 ? -1 : 1);
-              }
-            },
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapUp: (d) => _tap(d.localPosition),
-              onPanUpdate: widget.interactive ? (d) => _pan(d.delta) : null,
-              child: Stack(children: [
-                Container(color: const Color(0xFFE9EEDF)),
-                // Tiles
-                for (var ty = firstY; ty <= lastY; ty++)
-                  if (ty >= 0 && ty < n)
-                    for (var tx = firstX; tx <= lastX; tx++)
-                      Positioned(
-                        left: tx * _tile - originX,
-                        top: ty * _tile - originY,
-                        width: _tile,
-                        height: _tile,
-                        child: Image.network(
-                          'https://tile.openstreetmap.org/$_zoom/${tx % n}/$ty.png',
-                          fit: BoxFit.cover,
-                          gaplessPlayback: true,
-                          errorBuilder: (_, _, _) => const ColoredBox(color: Color(0xFFE9EEDF)),
-                        ),
-                      ),
-                // Faint grid + warm wash so it feels designed even without tiles
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: CustomPaint(painter: _MapWashPainter()),
-                  ),
+        child: Stack(children: [
+          gmaps.GoogleMap(
+            initialCameraPosition: gmaps.CameraPosition(
+              target: gmaps.LatLng(center.lat, center.lng),
+              zoom: widget.zoom.toDouble(),
+            ),
+            onMapCreated: (c) => _googleController = c,
+            markers: markers,
+            onTap: widget.interactive && widget.onTap != null
+                ? (p) => widget.onTap!(LatLng(p.latitude, p.longitude))
+                : null,
+            minMaxZoomPreference: const gmaps.MinMaxZoomPreference(3, 19),
+            zoomControlsEnabled: false,
+            zoomGesturesEnabled: widget.interactive,
+            scrollGesturesEnabled: widget.interactive,
+            rotateGesturesEnabled: widget.interactive,
+            tiltGesturesEnabled: false,
+            compassEnabled: false,
+            mapToolbarEnabled: false,
+            myLocationEnabled: false,
+            myLocationButtonEnabled: false,
+            padding: const EdgeInsets.only(bottom: 28),
+          ),
+          if (widget.showRadar)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: AnimatedBuilder(
+                  animation: _radar,
+                  builder: (_, _) => CustomPaint(painter: _RadarPainter(_radar.value)),
                 ),
-                if (widget.showRadar)
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: AnimatedBuilder(
-                        animation: _radar,
-                        builder: (_, _) => CustomPaint(painter: _RadarPainter(_radar.value)),
-                      ),
-                    ),
-                  ),
-                if (widget.myLocation) Center(child: _YouDot(pulse: _radar)),
-                // Pins
-                for (final pin in widget.pins)
-                  Positioned(
-                    left: _x(pin.lng) - originX - 62,
-                    top: _y(pin.lat) - originY - 16,
-                    width: 124,
-                    child: _Pin(
-                      pin: pin,
-                      onTap: widget.onPinTap == null ? null : () => widget.onPinTap!(pin),
-                    ),
-                  ),
-                // Controls
-                if (widget.showZoom)
-                  Positioned(
-                    right: 10,
-                    top: 10,
-                    child: Column(children: [
-                      _MapButton(icon: Icons.add_rounded, onTap: () => _zoomBy(1)),
-                      const SizedBox(height: 6),
-                      _MapButton(icon: Icons.remove_rounded, onTap: () => _zoomBy(-1)),
-                    ]),
-                  ),
-                Positioned(
-                  left: 8,
-                  bottom: 6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.78), borderRadius: BorderRadius.circular(6)),
-                    child: const Text('© OpenStreetMap',
-                        style: TextStyle(fontSize: 8, color: AppColors.muted, fontWeight: FontWeight.w600)),
-                  ),
-                ),
+              ),
+            ),
+          if (widget.myLocation) Center(child: _YouDot(pulse: _radar)),
+          if (widget.showZoom)
+            Positioned(
+              right: 10,
+              top: 10,
+              child: Column(children: [
+                _MapButton(icon: Icons.add_rounded, onTap: () => _googleZoom(1)),
+                const SizedBox(height: 6),
+                _MapButton(icon: Icons.remove_rounded, onTap: () => _googleZoom(-1)),
               ]),
             ),
-          );
-        }),
+        ]),
       ),
     );
   }
-}
 
-class _Pin extends StatelessWidget {
-  const _Pin({required this.pin, this.onTap});
-  final MapPin pin;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = pin.highlight ? AppColors.amberDeep : AppColors.ink;
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2.5),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.28), blurRadius: 10, offset: const Offset(0, 4))],
+  /// Shown only when the app was built without a Google Maps key (e.g. a plain
+  /// `flutter run` on Android before `build_apks.ps1`).
+  Widget _buildUnavailable() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(widget.cornerRadius),
+      child: SizedBox(
+        height: widget.height,
+        child: Container(
+          color: const Color(0xFFE9EEDF),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.all(16),
+          child: const Text(
+            'Google Maps key missing in this build.\nUse mobile\\build_apks.ps1 -GoogleMaps.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.muted),
           ),
-          child: const Icon(Icons.water_drop_rounded, color: Colors.white, size: 16),
         ),
-        const SizedBox(height: 3),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(6),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 6)],
-          ),
-          child: Text(pin.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.ink)),
-        ),
-      ]),
+      ),
     );
   }
 }
@@ -344,24 +280,4 @@ class _RadarPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RadarPainter old) => old.t != t;
-}
-
-class _MapWashPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    // A soft warm glow in the top-left keeps the map from looking like a raw tile dump.
-    final rect = Offset.zero & size;
-    canvas.drawRect(
-      rect,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0x0FFFF3D6), Color(0x00000000), Color(0x0F1E3A1A)],
-        ).createShader(rect),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter old) => false;
 }

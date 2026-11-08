@@ -31,6 +31,12 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Google Maps SDK for Android key. Injected at build time from
+             android/local.properties (GOOGLE_MAPS_API_KEY=...) or the
+             GOOGLE_MAPS_API_KEY environment variable. Never hard-code it here. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${googleMapsApiKey}" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

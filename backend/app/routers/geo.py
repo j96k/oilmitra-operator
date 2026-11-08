@@ -149,6 +149,19 @@ def status():
     return {"provider": "google" if configured else "openstreetmap", "google_configured": configured}
 
 
+@router.get("/config")
+def map_config():
+    """Public browser map config for the Flutter web apps.
+
+    `web/index.html` fetches this before starting Flutter and loads the Google
+    Maps JavaScript API with the key. This is a **browser key**, so it is meant
+    to be visible: restrict it in Google Cloud to the app's HTTP referrers
+    (and to Maps JavaScript API + Geocoding API). The server-side key is never
+    written into the committed web bundles.
+    """
+    return {"provider": "google", "key": settings.google_maps_api_key or ""}
+
+
 @router.get("/search")
 def search(q: str = Query(min_length=2, max_length=200), limit: int = 6, country: str = "in"):
     places = _google_search(q, limit, country)
