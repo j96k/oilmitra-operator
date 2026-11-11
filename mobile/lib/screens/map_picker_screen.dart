@@ -6,6 +6,7 @@ import '../api/api_client.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../widgets/oil_map.dart';
+import 'package:geolocator/geolocator.dart';
 
 class PickedPlace {
   PickedPlace({required this.lat, required this.lng, required this.label, this.area, this.city, this.pincode});
@@ -35,6 +36,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   String? _city;
   String? _pincode;
   bool _busy = false;
+  bool _locating = false;
 
   final _search = TextEditingController();
   Timer? _debounce;
@@ -45,13 +47,16 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   void initState() {
     super.initState();
     final i = widget.initial;
-    _center = i == null ? const LatLng(21.1702, 72.8311) : LatLng(i.lat, i.lng);
     if (i != null) {
+      _center = LatLng(i.lat, i.lng);
       _pin = LatLng(i.lat, i.lng);
       _label = i.label;
       _area = i.area;
       _city = i.city;
       _pincode = i.pincode;
+    } else {
+      // No saved location: try the phone's GPS first, fall back to Surat.
+      _goToMyLocation(fallback: true);
     }
   }
 
@@ -85,6 +90,38 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         _label = '${p.lat.toStringAsFixed(5)}, ${p.lng.toStringAsFixed(5)}';
         _busy = false;
       });
+    }
+  }
+
+  Future<void> _goToMyLocation({bool fallback = false}) async {
+    if (!mounted) return;
+    setState(() => _locating = true);
+    Position? pos;
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('Location permission permanently denied.');
+      }
+      if (permission == LocationPermission.whileInUse ||
+          permission == LocationPermission.always) {
+        pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 10),
+        );
+      }
+    } catch (_) {
+      pos = null;
+    }
+    if (!mounted) return;
+    setState(() => _locating = false);
+    if (pos != null) {
+      _center = LatLng(pos.latitude, pos.longitude);
+      await _tapMap(LatLng(pos.latitude, pos.longitude));
+    } else if (fallback) {
+      setState(() => _center = const LatLng(21.1702, 72.8311));
     }
   }
 
@@ -193,6 +230,13 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       appBar: AppBar(
         title: const Text('Pin your location'),
         actions: [
+          IconButton(
+            icon: _locating
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.my_location_rounded, size: 19),
+            onPressed: _locating ? null : _goToMyLocation,
+            tooltip: 'My current location',
+          ),
           TextButton.icon(
             onPressed: _pasteLink,
             icon: const Icon(Icons.link_rounded, size: 18),
@@ -233,7 +277,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                   Icon(Icons.touch_app_rounded, size: 18, color: AppColors.amberDeep),
                   SizedBox(width: 8),
                   Expanded(
-                    child: Text('Tap the map where the shop is, or search above.',
+                    child: Text('Tap the map where the shop is, search your restaurant/area above, or tap My location.',
                         style: TextStyle(fontSize: 12.5, color: AppColors.muted)),
                   ),
                 ])
@@ -278,7 +322,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                 onChanged: _onSearch,
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
-                  hintText: 'Search shop, area or city',
+                  hintText: 'Search restaurant, shop, area or city',
                   prefixIcon: const Icon(Icons.search_rounded, size: 20),
                   suffixIcon: _searching
                       ? const Padding(padding: EdgeInsets.all(14), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
