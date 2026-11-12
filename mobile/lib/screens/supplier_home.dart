@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api/api_client.dart';
+import '../l10n/app_localizations.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../utils.dart';
@@ -66,15 +67,16 @@ class _SupplierHomeState extends State<SupplierHome> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     if (_loading && _data == null) {
       return const Center(child: CircularProgressIndicator(color: AppColors.amberDeep));
     }
     if (_data == null) {
       return EmptyState(
         icon: Icons.wifi_off_rounded,
-        title: 'No connection',
+        title: loc.t('home.no_connection'),
         subtitle: _error,
-        action: FilledButton(onPressed: _load, child: const Text('Try again')),
+        action: FilledButton(onPressed: _load, child: Text(loc.t('home.try_again'))),
       );
     }
     final d = _data!;
@@ -94,15 +96,15 @@ class _SupplierHomeState extends State<SupplierHome> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Row(children: [
-              Expanded(child: _MiniStat(label: 'Open loads', value: '${d.openCount}', icon: Icons.bolt_rounded, color: AppColors.open)),
+              Expanded(child: _MiniStat(label: loc.t('home.open_loads'), value: '${d.openCount}', icon: Icons.bolt_rounded, color: AppColors.open)),
               const SizedBox(width: 8),
-              Expanded(child: _MiniStat(label: 'Scheduled', value: '${d.scheduledCount}', icon: Icons.event_available_rounded, color: AppColors.claimed)),
+              Expanded(child: _MiniStat(label: loc.t('home.scheduled'), value: '${d.scheduledCount}', icon: Icons.event_available_rounded, color: AppColors.claimed)),
               const SizedBox(width: 8),
-              Expanded(child: _MiniStat(label: 'Pickups', value: '${d.impact.pickups}', icon: Icons.verified_rounded, color: AppColors.olive)),
+              Expanded(child: _MiniStat(label: loc.t('home.pickups'), value: '${d.impact.pickups}', icon: Icons.verified_rounded, color: AppColors.olive)),
             ]),
           ),
           if (d.rates.isNotEmpty) ...[
-            const SectionHead('Today\'s rate board', action: 'Benchmark'),
+            const SectionHead("Today's rate board", action: 'Benchmark'),
             SizedBox(
               height: 74,
               child: ListView.separated(
@@ -128,7 +130,7 @@ class _SupplierHomeState extends State<SupplierHome> {
                       const Spacer(),
                       Text(money(r.price),
                           style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.7)),
-                      const Text('/ litre', style: TextStyle(fontSize: 9, color: AppColors.muted)),
+                      Text('/ ${loc.t('home.per_litre')}', style: TextStyle(fontSize: 9, color: AppColors.muted)),
                     ]),
                   );
                 },
@@ -220,6 +222,7 @@ class _WalletCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(colors: [AppColors.ink, Color(0xFF2C3A23)], begin: Alignment.topLeft, end: Alignment.bottomRight),
@@ -235,13 +238,13 @@ class _WalletCard extends StatelessWidget {
         ),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            const Text('OIL WALLET',
+            Text(loc.t('wallet.title'),
                 style: TextStyle(color: AppColors.gold, fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1.6)),
             const Spacer(),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-              child: Text('THIS MONTH', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 8.5, fontWeight: FontWeight.w800, letterSpacing: 1)),
+              child: Text(loc.t('wallet.this_month'), style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 8.5, fontWeight: FontWeight.w800, letterSpacing: 1)),
             ),
           ]),
           const SizedBox(height: 10),
@@ -251,19 +254,19 @@ class _WalletCard extends StatelessWidget {
             const SizedBox(width: 8),
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
-              child: Text('earned', style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 12, fontWeight: FontWeight.w600)),
+              child: Text(loc.t('wallet.earned'), style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 12, fontWeight: FontWeight.w600)),
             ),
           ]),
           const SizedBox(height: 4),
-          Text('${litres(d.litersThisMonth)} collected from your kitchen',
+          Text('${litres(d.litersThisMonth)} ${loc.t('wallet.collected')}',
               style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11.5)),
           const SizedBox(height: 16),
           Container(height: 1, color: Colors.white.withValues(alpha: 0.12)),
           const SizedBox(height: 14),
           Row(children: [
-            Expanded(child: HeroStat(label: 'Total litres', value: litres(d.impact.liters).replaceAll(' L', ''), unit: 'L')),
-            Expanded(child: HeroStat(label: 'CO₂ avoided', value: d.impact.co2Kg.toStringAsFixed(0), unit: 'kg')),
-            Expanded(child: HeroStat(label: 'Pickups', value: '${d.impact.pickups}')),
+            Expanded(child: HeroStat(label: loc.t('wallet.total_litres'), value: litres(d.impact.liters).replaceAll(' L', ''), unit: loc.t('wallet.unit_litres'))),
+            Expanded(child: HeroStat(label: loc.t('wallet.co2_avoided'), value: d.impact.co2Kg.toStringAsFixed(0), unit: 'kg')),
+            Expanded(child: HeroStat(label: loc.t('home.pickups'), value: '${d.impact.pickups}')),
           ]),
           const SizedBox(height: 16),
           FilledButton.icon(
@@ -274,7 +277,7 @@ class _WalletCard extends StatelessWidget {
               minimumSize: const Size.fromHeight(48),
             ),
             icon: const Icon(Icons.add_rounded, size: 20),
-            label: const Text('List oil available'),
+            label: Text(loc.t('home.list_oil_available')),
           ),
         ]),
       ]),
@@ -310,6 +313,7 @@ class _EmptyListings extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -320,12 +324,11 @@ class _EmptyListings extends StatelessWidget {
       child: Row(children: [
         const DropMark(size: 34),
         const SizedBox(width: 14),
-        const Expanded(
+        Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Oil ready after service?', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+            Text(loc.t('home.oil_ready'), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
             SizedBox(height: 2),
-            Text('List it once — our pickup team arranges collection.',
-                style: TextStyle(fontSize: 11.5, color: AppColors.muted, height: 1.35)),
+            Text(loc.t('home.list_once'), style: TextStyle(fontSize: 11.5, color: AppColors.muted, height: 1.35)),
           ]),
         ),
         const SizedBox(width: 8),
@@ -346,6 +349,7 @@ class _PickupRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -361,7 +365,7 @@ class _PickupRow extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(pickup.status == 'scheduled' ? 'Pickup scheduled' : 'Pickup completed',
+              Text(pickup.status == 'scheduled' ? loc.t('home.pickup_scheduled') : loc.t('home.pickup_completed'),
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
               Text(
                 pickup.status == 'scheduled'
@@ -390,6 +394,7 @@ class _ImpactTeaser extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -410,10 +415,10 @@ class _ImpactTeaser extends StatelessWidget {
           const SizedBox(width: 14),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${impact.co2Kg.toStringAsFixed(0)} kg CO₂e kept out of the drain',
+              Text('${impact.co2Kg.toStringAsFixed(0)} kg CO₂e ${loc.t('impact.kept_out')}',
                   style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, letterSpacing: -0.2)),
               const SizedBox(height: 3),
-              Text('That\'s ${impact.biodieselL.toStringAsFixed(0)} L of biodiesel waiting to happen.',
+              Text('That\'s ${impact.biodieselL.toStringAsFixed(0)} L ${loc.t('impact.biodiesel')}.',
                   style: const TextStyle(fontSize: 11, color: AppColors.muted, height: 1.35)),
             ]),
           ),

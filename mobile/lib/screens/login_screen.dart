@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../api/api_client.dart';
+import '../l10n/app_localizations.dart';
+import '../services/language_service.dart';
 import '../theme.dart';
 import '../utils.dart';
 import '../widgets/common.dart';
@@ -157,6 +159,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
               child: SingleChildScrollView(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  _LanguageSelector(),
+                  const SizedBox(height: 18),
                   Row(children: [
                     Expanded(
                       child: _ModeTab(label: 'Log in', active: !_register, onTap: () => setState(() => _register = false)),
@@ -301,3 +305,72 @@ class _Glow extends StatelessWidget {
     );
   }
 }
+
+/// Language picker shown at the top of the login card. Choosing a language
+/// saves it and rebuilds the whole supplier app immediately.
+class _LanguageSelector extends StatefulWidget {
+  const _LanguageSelector();
+
+  @override
+  State<_LanguageSelector> createState() => _LanguageSelectorState();
+}
+
+class _LanguageSelectorState extends State<_LanguageSelector> {
+  late String _value;
+
+  @override
+  void initState() {
+    super.initState();
+    _value = LanguageService.instance.locale;
+    LanguageService.instance.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    LanguageService.instance.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (!mounted) return;
+    setState(() => _value = LanguageService.instance.locale);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        const Icon(Icons.language_rounded, size: 18, color: AppColors.muted),
+        const SizedBox(width: 8),
+        Text(loc.t('login.language'),
+            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.muted)),
+      ]),
+      const SizedBox(height: 8),
+      DropdownButtonFormField<String>(
+        value: _value,
+        decoration: const InputDecoration(
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+          filled: true,
+          fillColor: Colors.white,
+        ),
+        items: languageOptions.entries.map((e) {
+          return DropdownMenuItem(
+            value: e.key,
+            child: Row(children: [
+              Text(e.value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            ]),
+          );
+        }).toList(),
+        onChanged: (v) async {
+          if (v == null) return;
+          await LanguageService.instance.set(v);
+          if (!mounted) return;
+          setState(() => _value = v);
+        },
+      ),
+    ]);
+  }
+}
+

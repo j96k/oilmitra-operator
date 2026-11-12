@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../api/api_client.dart';
+import '../l10n/app_localizations.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../utils.dart';
@@ -207,11 +208,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _logout() async {
+    final loc = AppLocalizations.of(context)!;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Log out?', style: TextStyle(fontWeight: FontWeight.w800)),
-        content: const Text('Your listings and pickups stay safe on the server.'),
+        title: Text(loc.t('common.logout_confirm'), style: TextStyle(fontWeight: FontWeight.w800)),
+        content: Text(loc.t('common.logout_msg')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Stay')),
           FilledButton(
@@ -231,6 +233,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     if (_loading && _user == null) {
       return const Center(child: CircularProgressIndicator(color: AppColors.amberDeep));
     }
@@ -238,7 +241,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (u == null) {
       return EmptyState(
         icon: Icons.person_off_rounded,
-        title: 'Not signed in',
+        title: loc.t('profile.not_signed_in'),
         subtitle: _error,
         action: FilledButton(onPressed: _load, child: const Text('Try again')),
       );
@@ -352,14 +355,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 14),
                   Row(children: [
                     Expanded(
-                      child: HeroStat(label: 'Litres saved', value: (d?.impact.liters ?? 0).toStringAsFixed(0), unit: 'L', color: AppColors.gold),
+                      child: HeroStat(label: loc.t('profile.litres_saved'), value: (d?.impact.liters ?? 0).toStringAsFixed(0), unit: 'L', color: AppColors.gold),
                     ),
                     Expanded(
-                      child: HeroStat(label: 'Pickups', value: '${d?.impact.pickups ?? 0}'),
+                      child: HeroStat(label: loc.t('home.pickups'), value: '${d?.impact.pickups ?? 0}'),
                     ),
                     Expanded(
                       child: HeroStat(
-                        label: (u.isAdmin) ? 'Paid out' : 'Earned',
+                        label: (u.isAdmin) ? loc.t('profile.paid_out') : loc.t('profile.earned_label'),
                         value: money(d?.moneyTotal ?? 0),
                       ),
                     ),
@@ -477,7 +480,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 side: BorderSide(color: AppColors.cancelled.withValues(alpha: 0.4)),
               ),
               icon: const Icon(Icons.logout_rounded, size: 18),
-              label: const Text('Log out'),
+              label: Text(loc.t('profile.log_out')),
             ),
           ),
           const SizedBox(height: 30),

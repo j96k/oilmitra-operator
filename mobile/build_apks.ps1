@@ -2,10 +2,14 @@
 #
 # The Google key is required and is injected into AndroidManifest.xml at build
 # time (never written to source files). Read from, in order:
-#   1. -ApiKey "AIza..."
-#   2. $env:GOOGLE_MAPS_API_KEY
-#   3. ..\backend\.env                    (GOOGLE_MAPS_API_KEY=...)
-#   4. android\local.properties           (GOOGLE_MAPS_API_KEY=...)
+#   1. -ApiKey "AIza..."                    (same key for all apps being built)
+#   2. Per-app env var from backend\.env:
+#        supplier   -> GOOGLE_MAPS_API_KEY_oilmitra
+#        operator   -> GOOGLE_MAPS_API_KEY_oilmitra-operators
+#        myoilmitra -> GOOGLE_MAPS_API_KEY
+#   3. $env:GOOGLE_MAPS_API_KEY             (fallback for all apps)
+#   4. ..\backend\.env                    (GOOGLE_MAPS_API_KEY=...)
+#   5. android\local.properties           (GOOGLE_MAPS_API_KEY=...)
 #
 # Google Cloud must have billing enabled and these APIs on the key:
 #   Maps SDK for Android, Geocoding API.
@@ -38,8 +42,8 @@ function Read-Prop([string]$path, [string]$name) {
     return ''
 }
 
-function Read-KeyFromFile([string]$path) {
-    return Read-Prop $path 'GOOGLE_MAPS_API_KEY'
+function Read-KeyFromFile([string]$path, [string]$name = 'GOOGLE_MAPS_API_KEY') {
+    return Read-Prop $path $name
 }
 
 # The Flutter tool needs a valid ANDROID_HOME. Prefer the SDK recorded in
@@ -53,22 +57,26 @@ if (-not $env:ANDROID_HOME -or -not (Test-Path $env:ANDROID_HOME)) {
     throw "Android SDK not found. Set sdk.dir in mobile\android\local.properties or set ANDROID_HOME."
 }
 
-function Get-GoogleKey {
+function Get-GoogleKey([string]$KeyName = 'GOOGLE_MAPS_API_KEY') {
     if ($ApiKey) { return $ApiKey.Trim() }
-    if ($env:GOOGLE_MAPS_API_KEY) { return $env:GOOGLE_MAPS_API_KEY.Trim() }
-    $k = Read-KeyFromFile (Join-Path $repo 'backend\.env')
+    $envValue = Get-Item "Env:\$KeyName" -ErrorAction SilentlyContinue
+    if ($envValue) { return $envValue.Value.Trim() }
+    $k = Read-KeyFromFile (Join-Path $repo 'backend\.env') $KeyName
     if ($k) { return $k }
-    $k = Read-KeyFromFile (Join-Path $mobile 'android\local.properties')
+    $k = Read-KeyFromFile (Join-Path $mobile 'android\local.properties') $KeyName
     if ($k) { return $k }
     return ''
 }
 
-$key = Get-GoogleKey
-if (-not $key) {
-    throw 'No Google Maps key found. Put GOOGLE_MAPS_API_KEY=... in backend\.env or android\local.properties, or pass -ApiKey.'
+$defaultKey = Get-GoogleKey
+# Per-app key validation happens inside the build loop below.
+
+# Per-app key mapping so supplier and operator can use different keys:
+$keyNameByApp = @{
+    supplier   = 'GOOGLE_MAPS_API_KEY_oilmitra'
+    operator   = 'GOOGLE_MAPS_API_KEY_oilmitra-operators'
+    myoilmitra = 'GOOGLE_MAPS_API_KEY'
 }
-$env:GOOGLE_MAPS_API_KEY = $key
-Write-Host "Google Maps: ON (key length $($key.Length))"
 
 $targets = @{
     supplier   = @{ Target = 'lib/main.dart';            Out = 'OilMitra-Supplier-1.0.0.apk' }
@@ -80,13 +88,21 @@ foreach ($app in $Apps) {
     if (-not $targets.ContainsKey($app)) { throw "Unknown app '$app' (use supplier, operator, myoilmitra)." }
     $t = $targets[$app]
 
+    # Pick per-app key from .env, fall back to default key, then -ApiKey
+    $appKeyName = $keyNameByApp[$app]
+    $appKey = Get-GoogleKey -KeyName $appKeyName
+    if (-not $appKey) { $appKey = $defaultKey }
+    if (-not $appKey) { throw "No Google Maps key found for $app. Set $appKeyName or GOOGLE_MAPS_API_KEY in backend\.env, or pass -ApiKey." }
+    $env:GOOGLE_MAPS_API_KEY = $appKey
+    Write-Host "Google Maps: ON for $app (key length $($appKey.Length))"
+
     $buildArgs = @(
         'build', 'apk', '--release',
         '--flavor', $app,
         '--target', $t.Target,
         "--dart-define=API_URL=$ApiUrl",
         '--dart-define=MAPS_PROVIDER=google',
-        "--dart-define=GOOGLE_MAPS_API_KEY=$key"
+        "--dart-define=GOOGLE_MAPS_API_KEY=$appKey"
     )
 
     Write-Host ''

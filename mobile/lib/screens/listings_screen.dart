@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api/api_client.dart';
+import '../l10n/app_localizations.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../utils.dart';
@@ -90,6 +91,7 @@ class _ListingsScreenState extends State<ListingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     final mine = widget.mode == ListingsMode.mine;
     final manage = widget.mode == ListingsMode.admin;
     final statuses = manage
@@ -97,7 +99,7 @@ class _ListingsScreenState extends State<ListingsScreen> {
         : const ['all', 'open', 'claimed', 'collected', 'expired'];
     return Scaffold(
       appBar: AppBar(
-        title: Text(manage ? 'All loads' : mine ? 'My oil' : 'Oil radar'),
+        title: Text(manage ? loc.t('listings.all_loads') : mine ? loc.t('nav.my_oil') : loc.t('listings.oil_radar')),
         actions: [
           IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded)),
           if (mine)
@@ -112,10 +114,10 @@ class _ListingsScreenState extends State<ListingsScreen> {
             controller: _search,
             decoration: InputDecoration(
               hintText: manage
-                  ? 'Search every load'
+                  ? loc.t('listings.search_all')
                   : mine
-                      ? 'Search your loads'
-                      : 'Search oil, area or city',
+                      ? loc.t('listings.search_my')
+                      : loc.t('listings.search_nearby'),
               prefixIcon: const Icon(Icons.search_rounded, size: 20),
               suffixIcon: _search.text.isEmpty
                   ? null
@@ -140,7 +142,7 @@ class _ListingsScreenState extends State<ListingsScreen> {
                   Padding(
                     padding: const EdgeInsets.only(right: 7),
                     child: ChoiceChip(
-                      label: Text(f == 'all' ? 'All' : statusLabel(f)),
+                      label: Text(f == 'all' ? loc.t('listings.status_all') : statusLabel(f)),
                       selected: _filter == f,
                       onSelected: (_) {
                         setState(() => _filter = f);
@@ -170,15 +172,15 @@ class _ListingsScreenState extends State<ListingsScreen> {
                                   ? Icons.inventory_2_outlined
                                   : Icons.radar_rounded,
                           title: mine
-                              ? 'No loads yet'
+                              ? loc.t('listings.no_loads')
                               : manage
-                                  ? 'No loads found'
-                                  : 'Radar is clear',
+                                  ? loc.t('listings.no_loads_found')
+                                  : loc.t('listings.radar_clear'),
                           subtitle: mine
-                              ? 'List your used oil — our pickup team will arrange collection.'
+                              ? loc.t('listings.list_your_oil')
                               : manage
-                                  ? 'Try another status or search — or pull down to refresh.'
-                                  : 'No open loads match this search. Pull down to refresh.',
+                                  ? loc.t('listings.try_another')
+                                  : loc.t('listings.no_open_matches'),
                           action: mine
                               ? FilledButton.icon(
                                   onPressed: _add,
