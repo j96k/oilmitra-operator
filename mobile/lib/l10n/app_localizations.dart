@@ -104,6 +104,11 @@ final Map<String, Map<String, String>> _translations = {
     'hi': 'इस खोज से कोई खुला लोड मेल नहीं खाता। नीचे खींचकर रिफ्रेश करें।',
     'gu': 'આ શોધ સાથે કોઈ ખુલ્લો લોડ મેળ ખાતું નથી. નીચે ખેંચીને રિફ્રેશ કરો.',
   },
+  'oil.and_other': {
+    'en': 'and other oil',
+    'hi': 'और अन्य तेल',
+    'gu': 'અને અન્ય તેલ',
+  },
   'login.tab.login': {
     'en': 'Log in',
     'hi': 'लॉग इन',

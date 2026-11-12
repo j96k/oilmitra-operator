@@ -1,24 +1,84 @@
 import 'package:intl/intl.dart';
 
+import '../services/language_service.dart';
+
 /// Small shared formatters and human labels.
 
-const oilTypes = ['sunflower', 'mustard', 'soybean', 'palm', 'mixed', 'other'];
+const oilTypes = [
+  'sunflower',
+  'mustard',
+  'soybean',
+  'palm',
+  'groundnut',
+  'rice_bran',
+  'cottonseed',
+  'mixed',
+  'other',
+];
 const orgTypes = ['hotel', 'restaurant', 'marriage_hall', 'cloud_kitchen', 'household', 'other'];
 
-String oilLabel(String t) => switch (t) {
-      'sunflower' => 'Sunflower',
-      'mustard' => 'Mustard',
-      'soybean' => 'Soybean',
-      'palm' => 'Palm',
-      'mixed' => 'Mixed',
-      _ => 'Other',
-    };
+String oilLabel(String t) {
+  final lang = LanguageService.instance.locale;
+  return _oilTranslations[t]?[lang] ?? _oilTranslations[t]?['en'] ?? t;
+}
+
+const Map<String, Map<String, String>> _oilTranslations = {
+  'sunflower': {
+    'en': 'Sunflower',
+    'hi': 'सूरजमुखी',
+    'gu': 'સૂર્યમુખી',
+  },
+  'mustard': {
+    'en': 'Mustard',
+    'hi': 'सरसों',
+    'gu': 'રાઈ',
+  },
+  'soybean': {
+    'en': 'Soybean',
+    'hi': 'सोयाबीन',
+    'gu': 'સોયાબીન',
+  },
+  'palm': {
+    'en': 'Palm',
+    'hi': 'पाम',
+    'gu': 'પામ',
+  },
+  'groundnut': {
+    'en': 'Groundnut',
+    'hi': 'मूंगफली',
+    'gu': 'મગફળી',
+  },
+  'rice_bran': {
+    'en': 'Rice Bran',
+    'hi': 'चावल की भूसी',
+    'gu': 'ચોખાની ભૂસી',
+  },
+  'cottonseed': {
+    'en': 'Cottonseed',
+    'hi': 'बिनौला',
+    'gu': 'કપાસિયા',
+  },
+  'mixed': {
+    'en': 'Mix',
+    'hi': 'मिश्रण',
+    'gu': 'મિશ્રણ',
+  },
+  'other': {
+    'en': 'Other',
+    'hi': 'अन्य',
+    'gu': 'અન્ય',
+  },
+};
 
 String oilEmoji(String t) => switch (t) {
       'sunflower' => '🌻',
       'mustard' => '🌾',
       'soybean' => '🫘',
       'palm' => '🌴',
+      'groundnut' => '🥜',
+      'rice_bran' => '🍚',
+      'cottonseed' => '🧵',
+      'mixed' => '🔄',
       _ => '🫗',
     };
 
