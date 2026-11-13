@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../api/api_client.dart';
@@ -169,41 +168,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (ok) {
       _snack('Connected to ${Api.instance.baseUrl}');
       _load();
-    }
-  }
-
-  Future<void> _editRate(OilRate r) async {
-    final ctrl = TextEditingController(text: r.price.toStringAsFixed(r.price % 1 == 0 ? 0 : 2));
-    final save = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('${oilLabel(r.oilType)} rate', style: const TextStyle(fontWeight: FontWeight.w800)),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-          decoration: const InputDecoration(labelText: 'Price per litre', prefixText: '₹ '),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(
-            style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Update'),
-          ),
-        ],
-      ),
-    );
-    if (save != true) return;
-    final price = double.tryParse(ctrl.text);
-    if (price == null || price <= 0) return _snack('Enter a valid price.');
-    try {
-      await Api.instance.setRate(r.oilType, price);
-      await _load();
-      _snack('${oilLabel(r.oilType)} rate updated.');
-    } on ApiException catch (e) {
-      _snack(e.message);
     }
   }
 
@@ -393,7 +357,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               last: true,
             ),
           ]),
-          SectionHead('Rate board', action: u.isAdmin ? 'Admin · tap to edit' : null),
+          SectionHead('Rate board'),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Container(
@@ -404,31 +368,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               child: Column(children: [
                 for (var n = 0; n < _rates.length; n++)
-                  InkWell(
-                    onTap: u.isAdmin ? () => _editRate(_rates[n]) : null,
-                    borderRadius: n == 0
-                        ? const BorderRadius.vertical(top: Radius.circular(22))
-                        : (n == _rates.length - 1 ? const BorderRadius.vertical(bottom: Radius.circular(22)) : BorderRadius.zero),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        border: n == _rates.length - 1 ? null : const Border(bottom: BorderSide(color: AppColors.line)),
-                      ),
-                      child: Row(children: [
-                        Text(oilEmoji(_rates[n].oilType), style: const TextStyle(fontSize: 17)),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text('${oilLabel(_rates[n].oilType)} oil',
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-                        ),
-                        Text('${money(_rates[n].price)}/L',
-                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
-                        if (u.isAdmin) ...[
-                          const SizedBox(width: 6),
-                          const Icon(Icons.edit_rounded, size: 13, color: AppColors.muted),
-                        ],
-                      ]),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      border: n == _rates.length - 1 ? null : const Border(bottom: BorderSide(color: AppColors.line)),
                     ),
+                    child: Row(children: [
+                      Text(oilEmoji(_rates[n].oilType), style: const TextStyle(fontSize: 17)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text('${oilLabel(_rates[n].oilType)} oil',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                      ),
+                      Text('${money(_rates[n].price)}/L',
+                          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+                    ]),
                   ),
                 if (_rates.isEmpty)
                   const Padding(
