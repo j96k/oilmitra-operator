@@ -18,7 +18,6 @@ class ListingFormScreen extends StatefulWidget {
 }
 
 class _ListingFormScreenState extends State<ListingFormScreen> {
-  final _title = TextEditingController();
   final _liters = TextEditingController();
   final _rate = TextEditingController();
   final _address = TextEditingController();
@@ -29,8 +28,12 @@ class _ListingFormScreenState extends State<ListingFormScreen> {
   final _notes = TextEditingController();
 
   String _oilType = 'mixed';
-  DateTime _from = DateTime.now().add(const Duration(hours: 1));
-  DateTime _to = DateTime.now().add(const Duration(days: 2));
+  /// Days the shop is open for pickup. Default: all seven days.
+  final Set<String> _pickupDays = {'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'};
+  /// Default pickup window: 9 AM to 10 PM.
+  TimeOfDay _pickupStart = const TimeOfDay(hour: 9, minute: 0);
+  TimeOfDay _pickupEnd = const TimeOfDay(hour: 22, minute: 0);
+
   Uint8List? _photo;
   String? _photoName;
   double? _lat;
@@ -44,12 +47,22 @@ class _ListingFormScreenState extends State<ListingFormScreen> {
 
   bool get _editing => widget.existing != null;
 
+  static const _dayKeys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  static const _dayLabels = {
+    'mon': 'Mon',
+    'tue': 'Tue',
+    'wed': 'Wed',
+    'thu': 'Thu',
+    'fri': 'Fri',
+    'sat': 'Sat',
+    'sun': 'Sun',
+  };
+
   @override
   void initState() {
     super.initState();
     final e = widget.existing;
     if (e != null) {
-      _title.text = e.title;
       _oilType = e.oilType;
       _liters.text = e.approxLiters.toStringAsFixed(e.approxLiters % 1 == 0 ? 0 : 1);
       _rate.text = e.ratePerLiter.toStringAsFixed(e.ratePerLiter % 1 == 0 ? 0 : 2);
@@ -59,12 +72,28 @@ class _ListingFormScreenState extends State<ListingFormScreen> {
       _pincode.text = e.pincode ?? '';
       _phone.text = e.phone ?? '';
       _notes.text = e.notes ?? '';
-      _from = e.availableFrom;
-      _to = e.availableTo;
       _lat = e.lat;
       _lng = e.lng;
       _placeLabel = e.area ?? e.city;
-      _rateTouched = true;
+      final savedDays = (e.extraFields?['pickup_days'] as List?)?.cast<String>() ?? [];
+      if (savedDays.isNotEmpty) {
+        _pickupDays.clear();
+        _pickupDays.addAll(savedDays);
+      }
+      final start = e.extraFields?['pickup_start'] as String?;
+      final end = e.extraFields?['pickup_end'] as String?;
+      if (start != null) {
+        final parts = start.split(':');
+        if (parts.length == 2) {
+          _pickupStart = TimeOfDay(hour: int.tryParse(parts[0]) ?? 9, minute: int.tryParse(parts[1]) ?? 0);
+        }
+      }
+      if (end != null) {
+        final parts = end.split(':');
+        if (parts.length == 2) {
+          _pickupEnd = TimeOfDay(hour: int.tryParse(parts[0]) ?? 22, minute: int.tryParse(parts[1]) ?? 0);
+        }
+      }
     } else {
       final u = Api.instance.user;
       _phone.text = u?.phone ?? '';
@@ -75,7 +104,7 @@ class _ListingFormScreenState extends State<ListingFormScreen> {
 
   @override
   void dispose() {
-    for (final c in [_title, _liters, _rate, _address, _area, _city, _pincode, _phone, _notes]) {
+    for (final c in [_liters, _rate, _address, _area, _city, _pincode, _phone, _notes]) {
       c.dispose();
     }
     super.dispose();
@@ -103,6 +132,26 @@ class _ListingFormScreenState extends State<ListingFormScreen> {
         if (match.isNotEmpty) _rate.text = match.first.price.toStringAsFixed(0);
       }
     });
+  }
+
+  void _toggleDay(String day) {
+    setState(() {
+      if (_pickupDays.contains(day)) {
+        _pickupDays.remove(day);
+      } else {
+        _pickupDays.add(day);
+      }
+    });
+  }
+
+  Future<void> _pickStartTime() async {
+    final t = await showTimePicker(context: context, initialTime: _pickupStart);
+    if (t != null) setState(() => _pickupStart = t);
+  }
+
+  Future<void> _pickEndTime() async {
+    final t = await showTimePicker(context: context, initialTime: _pickupEnd);
+    if (t != null) setState(() => _pickupEnd = t);
   }
 
   Future<void> _pickPhoto() async {
@@ -139,35 +188,28 @@ class _ListingFormScreenState extends State<ListingFormScreen> {
     });
   }
 
-  Future<DateTime?> _pickMoment(DateTime initial) async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime.now().subtract(const Duration(days: 1)),
-      lastDate: DateTime.now().add(const Duration(days: 120)),
-    );
-    if (date == null) return null;
-    if (!mounted) return null;
-    final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(initial));
-    if (time == null) return null;
-    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  String _titleForListing() {
+    return '${oilLabel(_oilType)} oil available';
   }
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     final liters = double.tryParse(_liters.text.trim());
     final rate = double.tryParse(_rate.text.trim());
-    if (_title.text.trim().length < 2) return _snack('Give the load a short title');
     if (liters == null || liters <= 0) return _snack('How many litres?');
     if (rate == null || rate < 0) return _snack('Enter a rate per litre');
     if (_address.text.trim().length < 4) return _snack('Add the pickup address');
-    if (_to.isBefore(_from) || _to.isAtSameMomentAs(_from)) return _snack('The pickup window must end after it starts');
+    if (_pickupDays.isEmpty) return _snack('Select at least one day for pickup');
     setState(() => _busy = true);
     try {
+      // Derive a single from/to window from today + selected times for API compatibility.
+      final now = DateTime.now();
+      final from = DateTime(now.year, now.month, now.day, _pickupStart.hour, _pickupStart.minute);
+      final to = DateTime(now.year, now.month, now.day, _pickupEnd.hour, _pickupEnd.minute);
       await Api.instance.saveListing(
         id: widget.existing?.id,
         fields: {
-          'title': _title.text.trim(),
+          'title': _titleForListing(),
           'oil_type': _oilType,
           'approx_liters': '$liters',
           'rate_per_liter': '$rate',
@@ -178,8 +220,11 @@ class _ListingFormScreenState extends State<ListingFormScreen> {
           if (_lat != null && _lng != null) 'lat': '$_lat',
           if (_lat != null && _lng != null) 'lng': '$_lng',
           if (_phone.text.trim().isNotEmpty) 'phone': _phone.text.trim(),
-          'available_from': apiDate(_from),
-          'available_to': apiDate(_to),
+          'available_from': apiDate(from),
+          'available_to': apiDate(to),
+          'pickup_days': _pickupDays.toList().join(','),
+          'pickup_start': '${_pickupStart.hour.toString().padLeft(2, '0')}:${_pickupStart.minute.toString().padLeft(2, '0')}',
+          'pickup_end': '${_pickupEnd.hour.toString().padLeft(2, '0')}:${_pickupEnd.minute.toString().padLeft(2, '0')}',
           if (_notes.text.trim().isNotEmpty) 'notes': _notes.text.trim(),
         },
         photoBytes: _photo,
@@ -223,13 +268,7 @@ class _ListingFormScreenState extends State<ListingFormScreen> {
               ),
           ]),
           const SizedBox(height: 18),
-          _label('The load'),
-          TextField(
-            controller: _title,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(hintText: 'e.g. Sunflower oil after Sunday brunch', prefixIcon: Icon(Icons.edit_outlined, size: 20)),
-          ),
-          const SizedBox(height: 10),
+          _label('Quantity'),
           Row(children: [
             Expanded(
               child: TextField(
@@ -264,17 +303,34 @@ class _ListingFormScreenState extends State<ListingFormScreen> {
               ]),
             ),
           const SizedBox(height: 18),
-          _label('Pickup window'),
+          // ---------- Pickup days ----------
+          _label('Open for pickup (days)'),
+          Wrap(spacing: 7, runSpacing: 7, children: [
+            for (final d in _dayKeys)
+              ChoiceChip(
+                label: Text(_dayLabels[d]!),
+                selected: _pickupDays.contains(d),
+                showCheckmark: false,
+                onSelected: (_) => _toggleDay(d),
+              ),
+          ]),
+          const SizedBox(height: 10),
           Row(children: [
-            Expanded(child: _WindowTile(label: 'From', value: dayMonthTime(_from), onTap: () async {
-              final d = await _pickMoment(_from);
-              if (d != null) setState(() => _from = d);
-            })),
+            Expanded(
+              child: _WindowTile(
+                label: 'From',
+                value: '${_pickupStart.hour.toString().padLeft(2, '0')}:${_pickupStart.minute.toString().padLeft(2, '0')}',
+                onTap: _pickStartTime,
+              ),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: _WindowTile(label: 'Until', value: dayMonthTime(_to), onTap: () async {
-              final d = await _pickMoment(_to);
-              if (d != null) setState(() => _to = d);
-            })),
+            Expanded(
+              child: _WindowTile(
+                label: 'To',
+                value: '${_pickupEnd.hour.toString().padLeft(2, '0')}:${_pickupEnd.minute.toString().padLeft(2, '0')}',
+                onTap: _pickEndTime,
+              ),
+            ),
           ]),
           const SizedBox(height: 18),
           _label('Where should they come?'),

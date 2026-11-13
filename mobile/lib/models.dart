@@ -160,6 +160,7 @@ class OilListing {
     this.isMine = false,
     this.canClaim = false,
     this.canCollect = false,
+    this.extraFields,
   });
 
   final int id;
@@ -191,6 +192,7 @@ class OilListing {
   final bool isMine;
   final bool canClaim;
   final bool canCollect;
+  final Map<String, dynamic>? extraFields;
 
   bool get hasLocation => lat != null && lng != null;
 
@@ -224,6 +226,7 @@ class OilListing {
         isMine: j['is_mine'] == true,
         canClaim: j['can_claim'] == true,
         canCollect: j['can_collect'] == true,
+        extraFields: j['extra_fields'] as Map<String, dynamic>?,
       );
 }
 

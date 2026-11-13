@@ -109,6 +109,31 @@ final Map<String, Map<String, String>> _translations = {
     'hi': 'और अन्य तेल',
     'gu': 'અને અન્ય તેલ',
   },
+  'form.quantity': {
+    'en': 'Quantity',
+    'hi': 'मात्रा',
+    'gu': 'પરिमाण',
+  },
+  'form.open_for_pickup': {
+    'en': 'Open for pickup (days)',
+    'hi': 'पिकअप के लिए खुले दिन',
+    'gu': 'પિકઅપ માટે ખુલ્લા દિવસ',
+  },
+  'form.pickup_from': {
+    'en': 'From',
+    'hi': 'से',
+    'gu': 'પરંતુ',
+  },
+  'form.pickup_to': {
+    'en': 'To',
+    'hi': 'तक',
+    'gu': 'સુધી',
+  },
+  'form.title_auto': {
+    'en': '{oil} oil available',
+    'hi': '{oil} तेल उपलब्ध',
+    'gu': '{oil} તેલ ઉપલબ્ધ',
+  },
   'login.tab.login': {
     'en': 'Log in',
     'hi': 'लॉग इन',
