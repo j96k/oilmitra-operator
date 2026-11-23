@@ -18,3 +18,7 @@ mobile/.gradle/
 mobile/android/.gradle/
 mobile/ios/Pods/
 deploy/*.tar.gz
+
+# Firebase secrets (do not commit)
+backend/*firebase-adminsdk*.json
+mobile/android/app/google-services.json
