@@ -1,7 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../api/api_client.dart';
 import '../l10n/app_localizations.dart';
+import '../services/firebase_auth_service.dart';
 import '../services/language_service.dart';
 import '../theme.dart';
 import '../utils.dart';
@@ -28,6 +30,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   final _name = TextEditingController();
   final _phone = TextEditingController();
   final _city = TextEditingController();
+  final _otpPhone = TextEditingController();
+  final _otpCode = TextEditingController();
+  String _verificationId = '';
+  bool _otpSent = false;
+  bool _otpBusy = false;
 
   @override
   void initState() {
@@ -43,6 +50,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     _name.dispose();
     _phone.dispose();
     _city.dispose();
+    _otpPhone.dispose();
+    _otpCode.dispose();
     super.dispose();
   }
 
@@ -79,6 +88,93 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       _snack('Could not connect. Check Settings (top right).');
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _sendOtp() async {
+    final phone = _otpPhone.text.trim();
+    if (phone.length < 10) return _snack('Enter a valid 10-digit phone number');
+    setState(() => _otpBusy = true);
+    try {
+      await FirebaseAuthService.sendOtp(
+        phoneNumber: '+91$phone',
+        onCodeSent: (id, token) {
+          setState(() {
+            _verificationId = id;
+            _otpSent = true;
+            _otpBusy = false;
+          });
+          _snack('OTP sent to +91$phone');
+        },
+        onFailed: (e) {
+          setState(() => _otpBusy = false);
+          _snack('OTP failed: ${e.message}');
+        },
+        onAutoRetrieved: (cred) async {
+          await _verifyOtpCredential(cred);
+        },
+        onCodeRetrieved: (verificationId) {
+          _verificationId = verificationId;
+        },
+      );
+    } catch (_) {
+      setState(() => _otpBusy = false);
+      _snack('Could not send OTP.');
+    }
+  }
+
+  Future<void> _verifyOtpAndLogin() async {
+    final code = _otpCode.text.trim();
+    if (code.length != 6) return _snack('Enter 6-digit OTP');
+    setState(() => _otpBusy = true);
+    try {
+      await FirebaseAuthService.verifyOtp(
+        smsCode: code,
+        verificationId: _verificationId,
+      );
+      final idToken = await FirebaseAuthService.getIdToken();
+      if (idToken == null) return _snack('Login failed.');
+
+      final res = await Api.instance.post('/auth/firebase-login', {
+        'firebase_token': idToken,
+      });
+      if (!mounted) return;
+      final token = res['access_token'];
+      Api.instance.token = token;
+      await Api.instance.init();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeShell()),
+        (_) => false,
+      );
+    } catch (e) {
+      setState(() => _otpBusy = false);
+      _snack('OTP verification failed.');
+    }
+  }
+
+  Future<void> _verifyOtpCredential(PhoneAuthCredential credential) async {
+    setState(() => _otpBusy = true);
+    try {
+      await FirebaseAuthService.signInWithCredential(credential);
+      final idToken = await FirebaseAuthService.getIdToken();
+      if (idToken == null) return _snack('Login failed.');
+
+      final res = await Api.instance.post('/auth/firebase-login', {
+        'firebase_token': idToken,
+      });
+      if (!mounted) return;
+      final token = res['access_token'];
+      Api.instance.token = token;
+      await Api.instance.init();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeShell()),
+        (_) => false,
+      );
+    } catch (e) {
+      setState(() => _otpBusy = false);
+      _snack('Auto OTP verification failed.');
     }
   }
 
@@ -218,6 +314,65 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       _register ? 'Your oil, your rate, your pickup.' : 'Welcome back — checking today\'s loads.',
                       style: const TextStyle(fontSize: 11.5, color: AppColors.muted),
                     ),
+                  ),
+                  const SizedBox(height: 18),
+                  // Phone OTP login section
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('Or login with phone',
+                          style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                      const SizedBox(height: 12),
+                      if (!_otpSent) ...[
+                        Row(children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _otpPhone,
+                              keyboardType: TextInputType.phone,
+                              maxLength: 10,
+                              decoration: const InputDecoration(
+                                hintText: '98765 43210',
+                                prefixText: '+91 ',
+                                prefixIcon: Icon(Icons.phone_rounded, size: 18),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton(
+                            onPressed: _otpBusy ? null : _sendOtp,
+                            child: _otpBusy
+                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                : const Text('Send OTP'),
+                          ),
+                        ]),
+                      ] else ...[
+                        TextField(
+                          controller: _otpCode,
+                          keyboardType: TextInputType.number,
+                          maxLength: 6,
+                          decoration: const InputDecoration(
+                            hintText: '123456',
+                            prefixIcon: Icon(Icons.lock_rounded, size: 18),
+                            labelText: '6-digit OTP',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        FilledButton(
+                          onPressed: _otpBusy ? null : _verifyOtpAndLogin,
+                          child: _otpBusy
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Text('Verify & Login'),
+                        ),
+                        TextButton(
+                          onPressed: _otpBusy ? null : _sendOtp,
+                          child: const Text('Resend OTP'),
+                        ),
+                      ],
+                    ]),
                   ),
                 ]),
               ),

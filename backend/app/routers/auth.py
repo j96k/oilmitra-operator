@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..admin_accounts import admin_username_exists, find_admin, sync_admin_user
+from ..auth.firebase_auth import verify_firebase_token
 from ..database import get_db
 from ..images import delete_image, save_image
 from ..models import User
@@ -86,3 +87,39 @@ async def upload_avatar(
     delete_image(old, db)
     db.commit()
     return user_out(user)
+
+
+@router.post("/firebase-login", response_model=TokenOut)
+async def firebase_login(
+    body: dict,
+    user_info = Depends(verify_firebase_token),
+    db: Session = Depends(get_db),
+):
+    """Login or register a user via Firebase phone OTP."""
+    firebase_uid = user_info["uid"]
+    phone_number = user_info.get("phone_number")
+
+    if not phone_number:
+        raise HTTPException(400, "Firebase account has no phone number")
+
+    # Check if a user with this phone already exists
+    user = db.scalar(select(User).where(User.phone == phone_number))
+    if user is None:
+        # Create a new supplier user
+        username = phone_number.replace("+", "").replace(" ", "")
+        if admin_username_exists(db, username):
+            username = f"supplier_{username}"
+        user = User(
+            username=username,
+            password_hash="",  # password auth disabled for phone-only users
+            name=phone_number,
+            role="supplier",
+            org_type="other",
+            phone=phone_number,
+            city=None,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    return TokenOut(access_token=create_token(user.id), user=user_out(user))

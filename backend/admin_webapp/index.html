@@ -41,6 +41,25 @@
     before Flutter starts so google_maps_flutter_web finds window.google.maps.
     If the key is missing or the script fails, Flutter still boots.
   -->
+  <!-- Firebase SDK for web (phone OTP auth) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+    import { getAuth } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDvQBU1kG6gLl8rUVKAOEk584B33rFpKXo",
+      authDomain: "oilmitra.firebaseapp.com",
+      projectId: "oilmitra",
+      storageBucket: "oilmitra.firebasestorage.app",
+      messagingSenderId: "123456789012",
+      appId: "1:123456789012:web:abcdef123456"
+    };
+
+    // Initialize Firebase before Flutter boots
+    const firebaseApp = initializeApp(firebaseConfig);
+    window.__firebaseAuth = getAuth(firebaseApp);
+  </script>
+
   <!-- The Flutter build tool injects its bootstrap <script> tag at this token.
        It is kept inside a comment so Flutter does not start before Google Maps
        has loaded; the loader below inserts flutter_bootstrap.js when ready.
@@ -90,7 +109,7 @@ _flutter.buildConfig = {"engineRevision":"af7e796e161ae0bb1ff0758c71a7105418bd9d
 
 _flutter.loader.load({
   serviceWorkerSettings: {
-    serviceWorkerVersion: "1671408018" /* Flutter's service worker is deprecated and will be removed in a future Flutter release. */
+    serviceWorkerVersion: "260471230" /* Flutter's service worker is deprecated and will be removed in a future Flutter release. */
   }
 });
  -->

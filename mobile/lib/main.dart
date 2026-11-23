@@ -5,6 +5,7 @@ import 'api/api_client.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
+import 'services/firebase_auth_service.dart';
 import 'services/language_service.dart';
 import 'theme.dart';
 
@@ -12,6 +13,7 @@ final navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await FirebaseAuthService.init();
   await Api.instance.init();
   await LanguageService.instance.load();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(statusBarColor: Colors.transparent));
