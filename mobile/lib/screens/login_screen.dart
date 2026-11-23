@@ -6,7 +6,6 @@ import '../l10n/app_localizations.dart';
 import '../services/firebase_auth_service.dart';
 import '../services/language_service.dart';
 import '../theme.dart';
-import '../utils.dart';
 import '../widgets/common.dart';
 import '../widgets/server_dialog.dart';
 import 'home_shell.dart';
@@ -23,6 +22,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   bool _busy = false;
   String _orgType = 'restaurant';
   bool _obscure = true;
+  bool _showPhoneLogin = true; // Phone OTP shown by default
   late final AnimationController _float;
 
   final _username = TextEditingController();
@@ -89,6 +89,114 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  // ---- Phone OTP login section (primary) ----
+
+  Widget _buildPhoneLoginSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Login with phone',
+            style: TextStyle(color: AppColors.ink, fontWeight: FontWeight.w800, fontSize: 13)),
+        const SizedBox(height: 12),
+        if (!_otpSent) ...[
+          Row(children: [
+            Expanded(
+              child: TextField(
+                controller: _otpPhone,
+                keyboardType: TextInputType.phone,
+                maxLength: 10,
+                decoration: const InputDecoration(
+                  hintText: '98765 43210',
+                  prefixText: '+91 ',
+                  prefixIcon: Icon(Icons.phone_rounded, size: 18),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: _otpBusy ? null : _sendOtp,
+              child: _otpBusy
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Send OTP'),
+            ),
+          ]),
+        ] else ...[
+          TextField(
+            controller: _otpCode,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            decoration: const InputDecoration(
+              hintText: '123456',
+              prefixIcon: Icon(Icons.lock_rounded, size: 18),
+              labelText: '6-digit OTP',
+            ),
+          ),
+          const SizedBox(height: 10),
+          FilledButton(
+            onPressed: _otpBusy ? null : _verifyOtpAndLogin,
+            child: _otpBusy
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Verify & Login'),
+          ),
+          TextButton(
+            onPressed: _otpBusy ? null : _sendOtp,
+            child: const Text('Resend OTP'),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  // ---- Username/Password login section (secondary) ----
+
+  Widget _buildUsernamePasswordSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Login with username & password',
+            style: TextStyle(color: AppColors.ink, fontWeight: FontWeight.w800, fontSize: 13)),
+        const SizedBox(height: 12),
+        _field(_username, 'Username', Icons.person_outline_rounded),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _password,
+          obscureText: _obscure,
+          onSubmitted: (_) => _submit(),
+          decoration: InputDecoration(
+            hintText: 'Password',
+            prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+            suffixIcon: IconButton(
+              onPressed: () => setState(() => _obscure = !_obscure),
+              icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 19),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        FilledButton(
+          onPressed: _busy ? null : _submit,
+          child: _busy
+              ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
+              : const Text('Log in'),
+        ),
+        const SizedBox(height: 10),
+        Center(
+          child: Text(
+            'Welcome back — checking today\'s loads.',
+            style: const TextStyle(fontSize: 11.5, color: AppColors.muted),
+          ),
+        ),
+      ]),
+    );
   }
 
   Future<void> _sendOtp() async {
@@ -257,123 +365,39 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   _LanguageSelector(),
                   const SizedBox(height: 18),
-                  Row(children: [
-                    Expanded(
-                      child: _ModeTab(label: 'Log in', active: !_register, onTap: () => setState(() => _register = false)),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _ModeTab(label: 'Create account', active: _register, onTap: () => setState(() => _register = true)),
-                    ),
-                  ]),
-                  const SizedBox(height: 18),
-                  if (_register) ...[
-                    _field(_name, 'Shop, hotel or home name', Icons.storefront_rounded),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<String>(
-                      initialValue: _orgType,
-                      decoration: const InputDecoration(prefixIcon: Icon(Icons.category_outlined, size: 20)),
-                      items: orgTypes
-                          .map((t) => DropdownMenuItem(value: t, child: Text('${orgIcon(t)}  ${orgLabel(t)}')))
-                          .toList(),
-                      onChanged: (v) => setState(() => _orgType = v ?? 'other'),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(children: [
-                      Expanded(child: _field(_city, 'City', Icons.location_city_rounded)),
-                      const SizedBox(width: 10),
-                      Expanded(child: _field(_phone, 'Phone', Icons.call_outlined, keyboard: TextInputType.phone)),
-                    ]),
-                    const SizedBox(height: 10),
-                  ],
-                  _field(_username, 'Username', Icons.person_outline_rounded),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _password,
-                    obscureText: _obscure,
-                    onSubmitted: (_) => _submit(),
-                    decoration: InputDecoration(
-                      hintText: 'Password',
-                      prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
-                      suffixIcon: IconButton(
-                        onPressed: () => setState(() => _obscure = !_obscure),
-                        icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 19),
+
+                  // Primary: Phone OTP login
+                  if (_showPhoneLogin)
+                    _buildPhoneLoginSection(),
+
+                  if (!_showPhoneLogin)
+                    _buildUsernamePasswordSection(),
+
+                  const SizedBox(height: 14),
+
+                  // Toggle between phone and username/password
+                  if (_showPhoneLogin)
+                    Center(
+                      child: TextButton(
+                        onPressed: () => setState(() => _showPhoneLogin = false),
+                        child: const Text(
+                          'Login with username & password instead',
+                          style: TextStyle(color: AppColors.ink, fontWeight: FontWeight.w700, fontSize: 12.5),
+                        ),
+                      ),
+                    )
+                  else
+                    Center(
+                      child: TextButton(
+                        onPressed: () => setState(() => _showPhoneLogin = true),
+                        child: const Text(
+                          'Login with phone OTP instead',
+                          style: TextStyle(color: AppColors.ink, fontWeight: FontWeight.w700, fontSize: 12.5),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: _busy ? null : _submit,
-                    child: _busy
-                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
-                        : Text(_register ? 'Create account' : 'Log in'),
-                  ),
+
                   const SizedBox(height: 10),
-                  Center(
-                    child: Text(
-                      _register ? 'Your oil, your rate, your pickup.' : 'Welcome back — checking today\'s loads.',
-                      style: const TextStyle(fontSize: 11.5, color: AppColors.muted),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  // Phone OTP login section
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('Or login with phone',
-                          style: TextStyle(color: AppColors.muted, fontSize: 12)),
-                      const SizedBox(height: 12),
-                      if (!_otpSent) ...[
-                        Row(children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _otpPhone,
-                              keyboardType: TextInputType.phone,
-                              maxLength: 10,
-                              decoration: const InputDecoration(
-                                hintText: '98765 43210',
-                                prefixText: '+91 ',
-                                prefixIcon: Icon(Icons.phone_rounded, size: 18),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          FilledButton(
-                            onPressed: _otpBusy ? null : _sendOtp,
-                            child: _otpBusy
-                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                                : const Text('Send OTP'),
-                          ),
-                        ]),
-                      ] else ...[
-                        TextField(
-                          controller: _otpCode,
-                          keyboardType: TextInputType.number,
-                          maxLength: 6,
-                          decoration: const InputDecoration(
-                            hintText: '123456',
-                            prefixIcon: Icon(Icons.lock_rounded, size: 18),
-                            labelText: '6-digit OTP',
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        FilledButton(
-                          onPressed: _otpBusy ? null : _verifyOtpAndLogin,
-                          child: _otpBusy
-                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                              : const Text('Verify & Login'),
-                        ),
-                        TextButton(
-                          onPressed: _otpBusy ? null : _sendOtp,
-                          child: const Text('Resend OTP'),
-                        ),
-                      ],
-                    ]),
-                  ),
                 ]),
               ),
             ),
@@ -388,36 +412,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         keyboardType: keyboard,
         decoration: InputDecoration(hintText: hint, prefixIcon: Icon(icon, size: 20)),
       );
-}
-
-class _ModeTab extends StatelessWidget {
-  const _ModeTab({required this.label, required this.active, required this.onTap});
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 11),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: active ? AppColors.ink : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: active ? AppColors.ink : AppColors.line),
-        ),
-        child: Text(label,
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 13.5,
-              color: active ? Colors.white : AppColors.muted,
-            )),
-      ),
-    );
-  }
 }
 
 class _HeroChip extends StatelessWidget {

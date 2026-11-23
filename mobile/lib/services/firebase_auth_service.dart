@@ -99,7 +99,6 @@ class FirebaseAuthService {
 
     final verifier = RecaptchaVerifier.newInstance('firebase-recaptcha-container', {
       'size': 'invisible',
-      'callback': js.allowInterop((token) {}),
     });
 
     js.context['firebase_recaptcha_verifier_obj'] = verifier;
