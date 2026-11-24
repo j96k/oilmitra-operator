@@ -49,9 +49,20 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
         user = sync_admin_user(db, admin)
         return TokenOut(access_token=create_token(user.id), user=user_out(user))
 
-    # 2. Everyone else signs in as a supplier. An older admin account that only
-    #    exists in users keeps working, so nobody is locked out by the change.
+    # 2. Everyone else signs in as a supplier. Try username first, then phone.
     user = db.scalar(select(User).where(User.username == username))
+    if user is None:
+        # Allow login with phone number (10 digits or +91...)
+        phone_candidates = {username, username.replace(" ", "")}
+        digits = "".join(ch for ch in username if ch.isdigit())
+        if len(digits) == 10:
+            phone_candidates.add("+91" + digits)
+            phone_candidates.add("91" + digits)
+            phone_candidates.add(digits)
+        elif len(digits) == 12 and digits.startswith("91"):
+            phone_candidates.add("+" + digits)
+            phone_candidates.add(digits[2:])
+        user = db.scalar(select(User).where(User.phone.in_(list(phone_candidates))))
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(401, "Wrong username or password")
     return TokenOut(access_token=create_token(user.id), user=user_out(user))
